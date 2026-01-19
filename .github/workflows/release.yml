@@ -22,7 +22,7 @@ jobs:
 
       - name: Build binary for AMD64
         run: |
-          GOOS=linux GOARCH=amd64 go build -o netback-linux-amd64 cmd/main.go
+          GOOS=linux GOARCH=amd64 go build -o netback-linux-amd64
 
       - name: Create Release
         id: create_release

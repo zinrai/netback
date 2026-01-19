@@ -20,7 +20,7 @@ Configuration is purely declarative: YAML files and regex patterns. What you wri
 ## Usage
 
 ```bash
-netback -routerdb routerdb.yaml -model model.yaml -output ./configs
+$ netback -routerdb routerdb.yaml -model model.yaml -output ./configs
 ```
 
 ### Options
@@ -33,24 +33,11 @@ netback -routerdb routerdb.yaml -model model.yaml -output ./configs
 | `-workers` | `5` | Number of concurrent connections |
 | `-timeout` | `30s` | Default connection timeout |
 
-## routerdb.yaml
+## Defining Devices
 
-```yaml
-devices:
-  - name: spine-01
-    ip: 192.168.1.1
-    model: eos
-    group: datacenter-tokyo
-    username: admin
-    password: secret123
+Device connection information is defined in `routerdb.yaml`.
 
-  - name: leaf-01
-    ip: 192.168.1.10
-    model: eos
-    group: datacenter-tokyo
-    username: admin
-    password: secret123
-```
+See [examples/routerdb.yaml](./examples/routerdb.yaml) for a working example.
 
 ### Fields
 
@@ -76,32 +63,11 @@ Configs are organized by group:
     └── leaf-01
 ```
 
-## model.yaml
+## Defining Models
 
-```yaml
-models:
-  eos:
-    prompt: '^.+[#>]$'
-    comment: '! '
+Device interaction patterns are defined in `model.yaml`.
 
-    connection:
-      post_login:
-        - "enable"
-        - "terminal length 0"
-      pre_logout: "exit"
-
-    secrets:
-      - pattern: '^(snmp-server community).*'
-        replace: '\1 <configuration removed>'
-      - pattern: '(secret \w+) (\S+).*'
-        replace: '\1 <secret hidden>'
-
-    comments:
-      - "show inventory | no-more"
-
-    commands:
-      - "show running-config | no-more | exclude ! Time:"
-```
+See [examples/model.yaml](./examples/model.yaml) for a working example.
 
 ### Fields
 
