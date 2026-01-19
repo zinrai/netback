@@ -2,6 +2,7 @@ package transport
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"time"
 
@@ -27,10 +28,19 @@ func NewSSHClient(device *config.Device, model *config.Model) *SSHClient {
 
 // Connect establishes the SSH connection
 func (c *SSHClient) Connect() (*Session, error) {
+	log.Printf("%s: connecting...", c.device.Name)
+
 	sshConfig := &ssh.ClientConfig{
 		User: c.device.Username,
 		Auth: []ssh.AuthMethod{
 			ssh.Password(c.device.Password),
+			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				answers := make([]string, len(questions))
+				for i := range questions {
+					answers[i] = c.device.Password
+				}
+				return answers, nil
+			}),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         c.device.EffectiveTimeout(),
@@ -50,6 +60,7 @@ func (c *SSHClient) Connect() (*Session, error) {
 	}
 
 	c.client = ssh.NewClient(sshConn, chans, reqs)
+	log.Printf("%s: ssh connected", c.device.Name)
 
 	c.session, err = c.client.NewSession()
 	if err != nil {
@@ -89,12 +100,14 @@ func (c *SSHClient) Connect() (*Session, error) {
 	session := NewSession(stdin, stdout, c.model, c.device.EffectiveTimeout())
 
 	// Wait for initial prompt
+	log.Printf("%s: waiting for prompt...", c.device.Name)
 	if _, err := session.ReadUntilPrompt(); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("wait for initial prompt: %w", err)
 	}
 
 	// Execute post-login commands
+	log.Printf("%s: executing post_login...", c.device.Name)
 	if err := session.ExecutePostLogin(); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("post-login: %w", err)
@@ -136,6 +149,7 @@ func ConnectAndExecute(device *config.Device, model *config.Model) ([]string, []
 	defer client.Close()
 
 	// Execute comment commands (each output stored separately)
+	log.Printf("%s: executing comments...", device.Name)
 	commentsOutputs := make([]string, 0, len(model.Comments))
 	for _, cmd := range model.Comments {
 		result, err := session.Execute(cmd)
@@ -146,6 +160,7 @@ func ConnectAndExecute(device *config.Device, model *config.Model) ([]string, []
 	}
 
 	// Execute config commands (each output stored separately)
+	log.Printf("%s: executing commands...", device.Name)
 	commandsOutputs := make([]string, 0, len(model.Commands))
 	for _, cmd := range model.Commands {
 		result, err := session.Execute(cmd)
