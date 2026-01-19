@@ -13,6 +13,8 @@ import (
 	"github.com/zinrai/netback/output"
 )
 
+var version = "0.1.0"
+
 func main() {
 	var (
 		routerdbPath  string
@@ -20,6 +22,7 @@ func main() {
 		outputDir     string
 		workers       int
 		defaultTimout time.Duration
+		showVersion   bool
 	)
 
 	flag.StringVar(&routerdbPath, "routerdb", "", "Path to routerdb.yaml")
@@ -27,7 +30,13 @@ func main() {
 	flag.StringVar(&outputDir, "output", "./configs", "Output directory")
 	flag.IntVar(&workers, "workers", 5, "Number of concurrent connections")
 	flag.DurationVar(&defaultTimout, "timeout", 30*time.Second, "Default connection timeout")
+	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 
 	if routerdbPath == "" || modelPath == "" {
 		fmt.Fprintln(os.Stderr, "Usage: netback -routerdb <file> -model <file> [-output <dir>]")
