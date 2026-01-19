@@ -1,6 +1,6 @@
 models:
   eos:
-    prompt: '^.+[#>]$'
+    prompt: '.+[#>]\s*$'
     comment: '! '
 
     connection:
@@ -11,23 +11,23 @@ models:
 
     secrets:
       - pattern: '^(snmp-server community).*'
-        replace: '\1 <configuration removed>'
+        replace: '$1 <configuration removed>'
       - pattern: '(secret \w+) (\S+).*'
-        replace: '\1 <secret hidden>'
+        replace: '$1 <secret hidden>'
       - pattern: '(password \d+) (\S+).*'
-        replace: '\1 <secret hidden>'
+        replace: '$1 <secret hidden>'
       - pattern: '^(enable (?:secret|password)).*'
-        replace: '\1 <configuration removed>'
+        replace: '$1 <configuration removed>'
       - pattern: '^(service unsupported-transceiver).*'
-        replace: '\1 <license key removed>'
+        replace: '$1 <license key removed>'
       - pattern: '^(tacacs-server key \d+).*'
-        replace: '\1 <configuration removed>'
+        replace: '$1 <configuration removed>'
       - pattern: '^(radius-server .+ key \d) \S+'
-        replace: '\1 <radius secret hidden>'
-      - pattern: '( {6}key) (\h+ 7) (\h+).*'
-        replace: '\1 <secret hidden>'
+        replace: '$1 <radius secret hidden>'
+      - pattern: '( {6}key) ([0-9a-fA-F]+ 7) ([0-9a-fA-F]+).*'
+        replace: '$1 <secret hidden>'
       - pattern: '(localized|auth (md5|sha\d{0,3})|priv (des|aes\d{0,3})) \S+'
-        replace: '\1 <secret hidden>'
+        replace: '$1 <secret hidden>'
 
     comments:
       - "show inventory | no-more"
