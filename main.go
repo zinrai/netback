@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -61,15 +62,13 @@ func main() {
 	var success, failed int
 	for _, r := range results {
 		if r.Error != nil {
-			fmt.Fprintf(os.Stderr, "FAIL %s: %v\n", r.Device.Name, r.Error)
 			failed++
 		} else {
-			fmt.Printf("OK   %s -> %s\n", r.Device.Name, writer.FilePath(r.Device.Name, r.Device.Group))
 			success++
 		}
 	}
 
-	fmt.Printf("\nCompleted: %d success, %d failed\n", success, failed)
+	log.Printf("Completed: %d success, %d failed", success, failed)
 
 	if failed > 0 {
 		os.Exit(1)
@@ -95,6 +94,7 @@ func executeBackups(
 
 		model, ok := modelFile.Models[device.Model]
 		if !ok {
+			log.Printf("%s: failed - model %q not found", device.Name, device.Model)
 			resultCh <- &executor.Result{
 				Device: device,
 				Error:  fmt.Errorf("model %q not found", device.Model),
@@ -117,6 +117,12 @@ func executeBackups(
 				if err := writer.Write(d.Name, d.Group, result.Output); err != nil {
 					result.Error = err
 				}
+			}
+
+			if result.Error != nil {
+				log.Printf("%s: failed - %v", d.Name, result.Error)
+			} else {
+				log.Printf("%s: ok", d.Name)
 			}
 
 			resultCh <- result
