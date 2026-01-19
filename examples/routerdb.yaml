@@ -1,21 +1,7 @@
 devices:
-  - name: spine-01
-    ip: 192.168.1.1
+  - name: eos-01
+    ip: 172.20.20.2
     model: eos
-    group: datacenter-tokyo
+    group: dc-tokyo
     username: admin
-    password: secret123
-
-  - name: spine-02
-    ip: 192.168.1.2
-    model: eos
-    group: datacenter-tokyo
-    username: admin
-    password: secret123
-
-  - name: leaf-01
-    ip: 192.168.1.10
-    model: eos
-    group: datacenter-tokyo
-    username: admin
-    password: secret123
+    password: admin
