@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/zinrai/netback/config"
@@ -46,7 +47,7 @@ func (c *SSHClient) Connect() (*Session, error) {
 		Timeout:         c.device.EffectiveTimeout(),
 	}
 
-	addr := fmt.Sprintf("%s:%d", c.device.IP, c.device.EffectivePort())
+	addr := net.JoinHostPort(c.device.IP, strconv.Itoa(c.device.EffectivePort()))
 
 	conn, err := net.DialTimeout("tcp", addr, c.device.EffectiveTimeout())
 	if err != nil {
