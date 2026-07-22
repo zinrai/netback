@@ -13,8 +13,6 @@ import (
 	"github.com/zinrai/netback/output"
 )
 
-var version = "0.1.0"
-
 func main() {
 	var (
 		routerdbPath  string
@@ -34,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Println(version)
+		printVersion()
 		os.Exit(0)
 	}
 
