@@ -25,7 +25,13 @@ $ sudo containerlab deploy -t containerlab.yaml
 
 This creates a single cEOS node accessible at 172.20.20.2.
 
-### 3. Run netback
+### 3. Write the password file
+
+```bash
+$ echo admin > eos.pw
+```
+
+### 4. Run netback
 
 ```bash
 $ netback -model model.yaml -routerdb routerdb.yaml
@@ -36,15 +42,14 @@ Expected output:
 ```
 2026/01/19 20:04:46 eos-01: connecting...
 2026/01/19 20:04:46 eos-01: ssh connected
-2026/01/19 20:04:46 eos-01: waiting for prompt...
-2026/01/19 20:04:46 eos-01: executing post_login...
+2026/01/19 20:04:46 eos-01: logging in...
 2026/01/19 20:04:46 eos-01: executing comments...
 2026/01/19 20:04:46 eos-01: executing commands...
 2026/01/19 20:04:47 eos-01: ok
 2026/01/19 20:04:47 Completed: 1 success, 0 failed
 ```
 
-### 4. Check output
+### 5. Check output
 
 ```bash
 $ cat configs/dc-tokyo/eos-01

@@ -31,7 +31,28 @@ $ netback -routerdb routerdb.yaml -model model.yaml -output ./configs
 | `-model` | (required) | Path to model.yaml |
 | `-output` | `./configs` | Output directory |
 | `-workers` | `5` | Number of concurrent connections |
-| `-timeout` | `30s` | Default connection timeout |
+| `-timeout` | `30s` | Default timeout, used for devices that do not set their own |
+| `-version` | | Print the version and exit |
+
+A device fails once it has been silent for longer than its timeout, so the
+value bounds how long the tool waits for the next piece of output rather than
+how long a command may take in total.
+
+### Exit status
+
+netback exits 1 if any device failed and 0 otherwise. Progress and failures are
+written to standard error, so a scheduler can treat a non-zero exit as the
+signal to surface the log:
+
+```
+2026/01/19 20:04:46 spine-01: connecting...
+2026/01/19 20:04:47 spine-01: ok
+2026/01/19 20:04:47 leaf-01: failed - execute "show running-config": timeout waiting for .+[#>]\s*$
+2026/01/19 20:04:47 Completed: 1 success, 1 failed
+```
+
+One device failing does not stop the others, and a device that fails leaves its
+previous backup untouched.
 
 ## Defining Devices
 
@@ -48,9 +69,36 @@ See [examples/routerdb.yaml](./examples/routerdb.yaml) for a working example.
 | model | Yes | Model name (defined in model.yaml) |
 | group | Yes | Output subdirectory |
 | username | Yes | Authentication username |
-| password | Yes | Authentication password |
+| password_file | Yes | Path to a file holding the password |
 | port | No | SSH port (default: 22) |
-| timeout | No | Connection timeout (default: 30s) |
+| timeout | No | Timeout for connecting and for waiting on output (default: `-timeout`) |
+
+### Passwords
+
+Passwords are always read from a file, so `routerdb.yaml` holds no credentials
+and can be version controlled as it is:
+
+```yaml
+devices:
+  - name: spine-01
+    ip: 192.0.2.1
+    model: eos
+    group: datacenter-tokyo
+    username: admin
+    password_file: /etc/netback/spine-01.pw
+```
+
+The file holds the password and nothing else. One trailing newline is ignored,
+so `echo` is enough to create it. Devices that share a credential can point at
+the same file.
+
+Nothing about the path is special, which is what makes it composable: a file
+placed by systemd `LoadCredential=`, a mounted secret, or a file written by a
+secret manager before the run all work the same way.
+
+Every password file is read before the first device is contacted, so an
+unreadable one stops the run instead of turning into a failed login part way
+through.
 
 ### Output Structure
 
@@ -81,10 +129,26 @@ See [examples/model.yaml](./examples/model.yaml) for a working example.
 | comments | No | Commands whose output is entirely commented |
 | commands | Yes | Commands to collect configuration |
 
+### prompt
+
+`prompt` is matched against the response as a whole, so `^` and `$` anchor to
+the response rather than to a line. Paging is turned off with a
+`connection.post_login` command or a per-command modifier such as `| no-more`.
+
+### secrets
+
+`secrets` patterns are matched line by line, so `^` and `$` anchor to a line:
+
+```yaml
+    secrets:
+      - pattern: '^(snmp-server community).*'
+        replace: '$1 <configuration removed>'
+```
+
 ### comments vs commands
 
-- `comments`: All output lines are prefixed with the `comment` string
-- `commands`: Only the first line (command echo) and last line (prompt) are commented
+- `comments`: Every non-empty output line is prefixed with the `comment` string
+- `commands`: Only the command echo and the prompt that follows the output are commented
 
 This separation allows you to:
 - Use `comments` for informational output like `show version`, `show inventory`

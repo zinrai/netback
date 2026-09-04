@@ -4,4 +4,4 @@ devices:
     model: eos
     group: dc-tokyo
     username: admin
-    password: admin
+    password_file: eos.pw

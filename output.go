@@ -1,0 +1,45 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// Not written straight to its final path: a write that fails part way through
+// would truncate the previous backup, which is the copy being relied on when
+// the current run is the one going wrong.
+func writeConfig(dir, group, name, content string) error {
+	groupDir := filepath.Join(dir, group)
+	if err := os.MkdirAll(groupDir, 0755); err != nil {
+		return fmt.Errorf("create group directory: %w", err)
+	}
+
+	tmp, err := os.CreateTemp(groupDir, "."+name+".")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write %s: %w", tmp.Name(), err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tmp.Name(), err)
+	}
+
+	// Not left as created: CreateTemp makes the file readable only by its
+	// owner.
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return fmt.Errorf("chmod %s: %w", tmp.Name(), err)
+	}
+
+	path := filepath.Join(groupDir, name)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("rename to %s: %w", path, err)
+	}
+
+	return nil
+}
