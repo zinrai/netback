@@ -31,29 +31,33 @@ func newTimedReader(r io.Reader) *timedReader {
 		done:    make(chan struct{}),
 	}
 
-	go func() {
-		for {
-			buf := make([]byte, readChunkSize)
-
-			n, err := r.Read(buf)
-			if n > 0 {
-				select {
-				case t.results <- readResult{data: buf[:n]}:
-				case <-t.done:
-					return
-				}
-			}
-			if err != nil {
-				select {
-				case t.results <- readResult{err: err}:
-				case <-t.done:
-				}
-				return
-			}
-		}
-	}()
+	go t.pump(r)
 
 	return t
+}
+
+func (t *timedReader) pump(r io.Reader) {
+	for {
+		buf := make([]byte, readChunkSize)
+
+		n, err := r.Read(buf)
+		if n > 0 && !t.deliver(readResult{data: buf[:n]}) {
+			return
+		}
+		if err != nil {
+			t.deliver(readResult{err: err})
+			return
+		}
+	}
+}
+
+func (t *timedReader) deliver(result readResult) bool {
+	select {
+	case t.results <- result:
+		return true
+	case <-t.done:
+		return false
+	}
 }
 
 func (t *timedReader) SetReadDeadline(deadline time.Time) error {

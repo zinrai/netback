@@ -30,20 +30,10 @@ type fakeDevice struct {
 func startFakeDevice(t *testing.T, device fakeDevice) int {
 	t.Helper()
 
-	_, key, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("generate host key: %v", err)
-	}
-
-	signer, err := ssh.NewSignerFromKey(key)
-	if err != nil {
-		t.Fatalf("host key signer: %v", err)
-	}
-
 	config := &ssh.ServerConfig{
 		PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) { return nil, nil },
 	}
-	config.AddHostKey(signer)
+	config.AddHostKey(hostKey(t))
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -57,17 +47,35 @@ func startFakeDevice(t *testing.T, device fakeDevice) int {
 		listener.Close()
 	})
 
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			go serveFakeDevice(conn, config, device, stop)
-		}
-	}()
+	go acceptConnections(listener, config, device, stop)
 
 	return listener.Addr().(*net.TCPAddr).Port
+}
+
+func hostKey(t *testing.T) ssh.Signer {
+	t.Helper()
+
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate host key: %v", err)
+	}
+
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		t.Fatalf("host key signer: %v", err)
+	}
+
+	return signer
+}
+
+func acceptConnections(listener net.Listener, config *ssh.ServerConfig, device fakeDevice, stop <-chan struct{}) {
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		go serveFakeDevice(conn, config, device, stop)
+	}
 }
 
 func serveFakeDevice(conn net.Conn, config *ssh.ServerConfig, device fakeDevice, stop <-chan struct{}) {
@@ -85,34 +93,39 @@ func serveFakeDevice(conn net.Conn, config *ssh.ServerConfig, device fakeDevice,
 			return
 		}
 
-		go func() {
-			for req := range requests {
-				if req.WantReply {
-					req.Reply(true, nil)
-				}
-			}
-		}()
-
-		channel.Write([]byte(device.prompt))
-
-		scanner := bufio.NewScanner(channel)
-		for scanner.Scan() {
-			command := strings.TrimSpace(scanner.Text())
-
-			if device.silentOn != "" && command == device.silentOn {
-				<-stop
-				return
-			}
-
-			if device.closeOn != "" && command == device.closeOn {
-				channel.Close()
-				return
-			}
-
-			channel.Write([]byte(command + "\n" + device.responses[command] + device.prompt))
-		}
+		go replyToRequests(requests)
+		serveShell(channel, device, stop)
 
 		return
+	}
+}
+
+func replyToRequests(requests <-chan *ssh.Request) {
+	for req := range requests {
+		if req.WantReply {
+			req.Reply(true, nil)
+		}
+	}
+}
+
+func serveShell(channel ssh.Channel, device fakeDevice, stop <-chan struct{}) {
+	channel.Write([]byte(device.prompt))
+
+	scanner := bufio.NewScanner(channel)
+	for scanner.Scan() {
+		command := strings.TrimSpace(scanner.Text())
+
+		if device.silentOn != "" && command == device.silentOn {
+			<-stop
+			return
+		}
+
+		if device.closeOn != "" && command == device.closeOn {
+			channel.Close()
+			return
+		}
+
+		channel.Write([]byte(command + "\n" + device.responses[command] + device.prompt))
 	}
 }
 

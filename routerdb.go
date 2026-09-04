@@ -46,29 +46,35 @@ func loadRouterDB(path string, defaultTimeout time.Duration) (*RouterDB, error) 
 	}
 
 	for i := range db.Devices {
-		d := &db.Devices[i]
-
-		if err := validateDevice(d); err != nil {
-			return nil, fmt.Errorf("%s: %w", deviceLabel(i, d), err)
-		}
-
-		// Not deferred to connect time: an unreadable password file should
-		// stop the run before any device is contacted.
-		password, err := readPasswordFile(d.PasswordFile)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", deviceLabel(i, d), err)
-		}
-		d.password = password
-
-		if d.Port == 0 {
-			d.Port = defaultPort
-		}
-		if d.Timeout == 0 {
-			d.Timeout = defaultTimeout
+		if err := prepareDevice(&db.Devices[i], defaultTimeout); err != nil {
+			return nil, fmt.Errorf("%s: %w", deviceLabel(i, &db.Devices[i]), err)
 		}
 	}
 
 	return &db, nil
+}
+
+func prepareDevice(d *Device, defaultTimeout time.Duration) error {
+	if err := validateDevice(d); err != nil {
+		return err
+	}
+
+	// Not deferred to connect time: an unreadable password file should stop
+	// the run before any device is contacted.
+	password, err := readPasswordFile(d.PasswordFile)
+	if err != nil {
+		return err
+	}
+	d.password = password
+
+	if d.Port == 0 {
+		d.Port = defaultPort
+	}
+	if d.Timeout == 0 {
+		d.Timeout = defaultTimeout
+	}
+
+	return nil
 }
 
 // The name is what identifies a device to whoever has to fix the file, so it

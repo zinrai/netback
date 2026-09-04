@@ -85,17 +85,21 @@ func (s *Session) readUntil(pattern *regexp.Regexp) (string, error) {
 			return s.buffer.String(), nil
 		}
 
-		// Not a successful read: without the prompt the response is
-		// incomplete, and reporting it as a backup would overwrite a good
-		// file with half a configuration.
-		switch {
-		case errors.Is(err, os.ErrDeadlineExceeded):
-			return s.buffer.String(), fmt.Errorf("timeout waiting for %s", pattern)
-		case errors.Is(err, io.EOF):
-			return s.buffer.String(), fmt.Errorf("connection closed before prompt")
-		default:
-			return s.buffer.String(), fmt.Errorf("read: %w", err)
-		}
+		return s.buffer.String(), incompleteResponse(err, pattern)
+	}
+}
+
+// Not a successful read: without the prompt the response is incomplete, and
+// reporting it as a backup would overwrite a good file with half a
+// configuration.
+func incompleteResponse(err error, pattern *regexp.Regexp) error {
+	switch {
+	case errors.Is(err, os.ErrDeadlineExceeded):
+		return fmt.Errorf("timeout waiting for %s", pattern)
+	case errors.Is(err, io.EOF):
+		return fmt.Errorf("connection closed before prompt")
+	default:
+		return fmt.Errorf("read: %w", err)
 	}
 }
 
