@@ -4,52 +4,69 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
-func runBackups(routerdb *RouterDB, modelFile *ModelFile, outputDir string, workers int) int {
-	var (
-		wg     sync.WaitGroup
-		mu     sync.Mutex
-		failed int
-	)
+type Result struct {
+	Device   *Device
+	Duration time.Duration
+	Err      error
+}
 
-	fail := func(name string, err error) {
-		log.Printf("%s: failed - %v", name, err)
-		mu.Lock()
-		failed++
-		mu.Unlock()
-	}
+func runBackups(routerdb *RouterDB, modelFile *ModelFile, outputDir string, workers int) []Result {
+	// Not appended from the goroutines: one slot per device keeps the results
+	// in routerdb order without a lock, so what is reported does not vary
+	// between runs.
+	results := make([]Result, len(routerdb.Devices))
 
-	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+
+	slots := make(chan struct{}, workers)
 
 	for i := range routerdb.Devices {
 		device := &routerdb.Devices[i]
 
+		result := &results[i]
+		result.Device = device
+
 		model, ok := modelFile.Models[device.Model]
 		if !ok {
-			fail(device.Name, fmt.Errorf("model %q not found", device.Model))
+			result.Err = fmt.Errorf("model %q not found", device.Model)
+			log.Printf("%s: failed - %v", device.Name, result.Err)
 			continue
 		}
 
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
-
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if err := backupDevice(device, model, outputDir); err != nil {
-				fail(device.Name, err)
-				return
-			}
-
-			log.Printf("%s: ok", device.Name)
+			backupOne(slots, result, model, outputDir)
 		}()
 	}
 
 	wg.Wait()
 
-	return failed
+	return results
+}
+
+func backupOne(slots chan struct{}, result *Result, model *Model, outputDir string) {
+	slots <- struct{}{}
+	defer func() { <-slots }()
+
+	device := result.Device
+
+	// Not started before the slot is taken: that would measure how long the
+	// device waited behind the others rather than how long the device took.
+	start := time.Now()
+	result.Err = backupDevice(device, model, outputDir)
+	result.Duration = time.Since(start)
+
+	if result.Err != nil {
+		log.Printf("%s: failed - %v", device.Name, result.Err)
+		return
+	}
+
+	log.Printf("%s: ok", device.Name)
 }
 
 func backupDevice(device *Device, model *Model, outputDir string) error {

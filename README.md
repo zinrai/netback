@@ -32,17 +32,16 @@ $ netback -routerdb routerdb.yaml -model model.yaml -output ./configs
 | `-output` | `./configs` | Output directory |
 | `-workers` | `5` | Number of concurrent connections |
 | `-timeout` | `30s` | Default timeout, used for devices that do not set their own |
+| `-metrics` | off | Path to write Prometheus metrics to when the run finishes |
 | `-version` | | Print the version and exit |
 
-A device fails once it has been silent for longer than its timeout, so the
-value bounds how long the tool waits for the next piece of output rather than
-how long a command may take in total.
+The timeout bounds how long netback waits for the next piece of output, not how
+long a command may take in total.
 
 ### Exit status
 
 netback exits 1 if any device failed and 0 otherwise. Progress and failures are
-written to standard error, so a scheduler can treat a non-zero exit as the
-signal to surface the log:
+written to standard error:
 
 ```
 2026/01/19 20:04:46 spine-01: connecting...
@@ -51,8 +50,41 @@ signal to surface the log:
 2026/01/19 20:04:47 Completed: 1 success, 1 failed
 ```
 
-One device failing does not stop the others, and a device that fails leaves its
-previous backup untouched.
+A failing device does not stop the others, and its previous backup is left in
+place.
+
+### Metrics
+
+`-metrics` writes the result of the run to a file in Prometheus exposition
+format once every device has been attempted:
+
+```bash
+netback -routerdb routerdb.yaml -model model.yaml \
+  -metrics /var/lib/node_exporter/textfile/netback.prom
+```
+
+```
+# HELP netback_backup_success Config backup success status (1=success, 0=failure)
+# TYPE netback_backup_success gauge
+netback_backup_success{device="spine-01",group="dc-tokyo"} 1
+netback_backup_success{device="leaf-01",group="dc-tokyo"} 0
+# HELP netback_backup_duration_seconds Config backup duration in seconds
+# TYPE netback_backup_duration_seconds gauge
+netback_backup_duration_seconds{device="spine-01",group="dc-tokyo"} 2.500
+netback_backup_duration_seconds{device="leaf-01",group="dc-tokyo"} 30.000
+```
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| netback_backup_success | gauge | 1 if the configuration was stored, 0 otherwise |
+| netback_backup_duration_seconds | gauge | Time spent on the device, not counting time queued behind other devices |
+
+Every device in `routerdb.yaml` appears, including one that was never
+contacted. The file is replaced atomically and is written whether or not
+devices failed. A run that ends before any device is attempted leaves the
+previous file alone.
+
+To send the metrics somewhere else, read the file after the run.
 
 ## Defining Devices
 
@@ -75,8 +107,7 @@ See [examples/routerdb.yaml](./examples/routerdb.yaml) for a working example.
 
 ### Passwords
 
-Passwords are always read from a file, so `routerdb.yaml` holds no credentials
-and can be version controlled as it is:
+Passwords are read from a file, so `routerdb.yaml` holds no credentials:
 
 ```yaml
 devices:
@@ -90,15 +121,11 @@ devices:
 
 The file holds the password and nothing else. One trailing newline is ignored,
 so `echo` is enough to create it. Devices that share a credential can point at
-the same file.
+the same file, and the path is read as given, so a file placed by systemd
+`LoadCredential=`, a mounted secret, or one written by a secret manager before
+the run all work.
 
-Nothing about the path is special, which is what makes it composable: a file
-placed by systemd `LoadCredential=`, a mounted secret, or a file written by a
-secret manager before the run all work the same way.
-
-Every password file is read before the first device is contacted, so an
-unreadable one stops the run instead of turning into a failed login part way
-through.
+An unreadable password file stops the run before any device is contacted.
 
 ### Output Structure
 
