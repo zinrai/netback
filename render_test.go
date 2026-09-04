@@ -23,7 +23,7 @@ func secretsModel(t *testing.T, rules ...FilterRule) *Model {
 
 // Masking is the one step whose failure leaves no trace: the backup still
 // looks right, it just has the credential in it.
-func TestMaskSecrets(t *testing.T) {
+func TestMaskSecretsHidesCredentials(t *testing.T) {
 	model := secretsModel(t,
 		FilterRule{Pattern: `^(snmp-server community).*`, Replace: `$1 <removed>`},
 		FilterRule{Pattern: `(secret \w+) (\S+).*`, Replace: `$1 <removed>`},
@@ -66,7 +66,7 @@ func TestMaskSecretsAnchorsToLines(t *testing.T) {
 
 // The stored file has to stay usable as a configuration, so only the command
 // echo and the prompt after it are commented.
-func TestCommentFirstLastLines(t *testing.T) {
+func TestCommentFirstLastLinesLeavesTheBodyAlone(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string

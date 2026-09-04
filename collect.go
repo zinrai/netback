@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// collectOutput opens a session to a device and returns what each command
-// printed, keeping the comments and commands groups apart
 func collectOutput(device *Device, model *Model) (comments, commands []string, err error) {
 	client := &sshClient{device: device, model: model}
 
